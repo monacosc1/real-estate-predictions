@@ -1,7 +1,7 @@
 # Real-Estate-Prediction
 
 Predictions on Median Real Estate Prices on US Cities 
-[Click here to access the Real Estate App](https://real-estate-prediction-maoe4ge2wvukdeappseash6.streamlit.app/)
+[Click here to access the Real Estate App](https://real-estate-predictions-5zubghkpzgc54tocbxw3dc.streamlit.app/)
 General Data Source: [Redfin Data Center](https://www.redfin.com/news/data-center/)
 
 **Metro Level Data Source**: [redfin_metro_market_tracker.tsv000](https://redfin-public-data.s3.us-west-2.amazonaws.com/redfin_market_tracker/state_market_tracker.tsv000.gz)
