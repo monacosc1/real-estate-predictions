@@ -8,6 +8,12 @@ General Data Source: [Redfin Data Center](https://www.redfin.com/news/data-cente
 
 Metro Level Data: Utilizing the Redfin Metro Market Tracker Data, we focus on metro-level granularity. This allows for a detailed analysis, crucial for understanding regional real estate dynamics.
 
+## Dashboard
+* **Created Using** Streamlit
+* **Link to Dashboard** https://real-estate-predictions-5zubghkpzgc54tocbxw3dc.streamlit.app/
+
+![alt text](https://github.com/monacosc1/real-estate-predictions/blob/master/images/dashboard_screenshot.png) 
+
 ## Notebook Descriptions 
 
 ### Data Preparation for Prediction.ipynb
