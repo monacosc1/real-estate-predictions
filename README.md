@@ -53,7 +53,7 @@ To view the generated app by this project, follow these steps:
 1. Clone the repository
 
     ```bash
-    git clone https://github.com/enesbol/Real-Estate-Prediction
+    git clone https://github.com/monacosc1/real-estate-predictions
     ```
  
 2. Navigate to the repository's root directory using your terminal. 
