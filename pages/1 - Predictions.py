@@ -11,7 +11,7 @@ import streamlit as st
 import os
 
 # Disable warnings
-st.set_option('deprecation.showPyplotGlobalUse', False)
+# st.set_option('deprecation.showPyplotGlobalUse', False)
 
 st.set_page_config(layout="wide") # , initial_sidebar_state="collapsed"
 
