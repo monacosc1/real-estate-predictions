@@ -55,7 +55,7 @@ Models are validated using expanding-window walk-forward backtesting: train on 6
 
 ## Live App
 
-Try the interactive forecast tool: [Real Estate Predictions on Streamlit](https://real-estate-predictions-5zubghkpzgc54tocbxw3dc.streamlit.app/)
+Try the interactive forecast tool: [Real Estate Predictions on Streamlit](https://real-estate-predictions-dybusa6gfqqipwtpbyzvry.streamlit.app/)
 
 ---
 
