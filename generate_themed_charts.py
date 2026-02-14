@@ -33,10 +33,14 @@ warnings.filterwarnings('ignore')
 # ---------------------------------------------------------------------------
 DATA_PATH = Path('C:/Users/monac/Documents/projects/older-github-repos/upwork/real-estate-predictions/data/data_for_prediction.csv')
 OUTPUT_DIR = Path('C:/Users/monac/Documents/projects/scott-personal-site/static/images/real-estate-prediction')
+LOCAL_CHART_DIR = Path('C:/Users/monac/Documents/projects/older-github-repos/upwork/real-estate-predictions/charts')
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+LOCAL_CHART_DIR.mkdir(parents=True, exist_ok=True)
 
 PROJECT_SLUG = 'real-estate-prediction'
 SOURCE_TEXT = 'Redfin Metro Market Tracker'
+
+SEASONAL_PERIOD = 12
 
 # ---------------------------------------------------------------------------
 # Load data
@@ -76,7 +80,7 @@ def run_sarima_forecast(city_df, column='median_sale_price', forecast_steps=12):
 
     # Auto ARIMA
     model = pm.auto_arima(
-        train_data, seasonal=True, m=12, stepwise=True,
+        train_data, seasonal=True, m=SEASONAL_PERIOD, stepwise=True,
         suppress_warnings=True, error_action='ignore'
     )
     P, D, Q, s = model.seasonal_order
@@ -103,6 +107,59 @@ def run_sarima_forecast(city_df, column='median_sale_price', forecast_steps=12):
 
 
 # ---------------------------------------------------------------------------
+# Walk-forward backtesting helper
+# ---------------------------------------------------------------------------
+def walk_forward_validation(city_df, column='median_sale_price',
+                            initial_train_months=60, test_horizon=12, step_size=6):
+    """Expanding-window walk-forward validation for one city."""
+    import pmdarima as pm
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+    cdf = city_df.sort_values('period_end').reset_index(drop=True)
+    n = len(cdf)
+    results = []
+    fold = 0
+
+    start = initial_train_months
+    while start + test_horizon <= n:
+        train_slice = cdf.iloc[:start].copy()
+        test_slice = cdf.iloc[start:start + test_horizon].copy()
+
+        train_slice['diff'] = train_slice[column].diff(1)
+        train_clean = train_slice.dropna(subset=['diff']).reset_index(drop=True)
+        last_value = train_slice[column].iloc[-1]
+
+        try:
+            auto = pm.auto_arima(
+                train_clean['diff'], seasonal=True, m=SEASONAL_PERIOD,
+                stepwise=True, suppress_warnings=True, error_action='ignore'
+            )
+            p, d, q = auto.order
+            P, D, Q, s = auto.seasonal_order
+
+            model = SARIMAX(train_clean['diff'], order=(p, d, q), seasonal_order=(P, D, Q, s))
+            fit = model.fit(disp=False)
+
+            fc = fit.get_forecast(steps=test_horizon).summary_frame()
+            pred_levels = np.cumsum(fc['mean'].values) + last_value
+
+            for j, (_, row) in enumerate(test_slice.iterrows()):
+                results.append({
+                    'fold': fold,
+                    'date': row['period_end'],
+                    'actual': row[column],
+                    'predicted': pred_levels[j],
+                })
+        except Exception:
+            pass
+
+        fold += 1
+        start += step_size
+
+    return pd.DataFrame(results)
+
+
+# ---------------------------------------------------------------------------
 # Run forecasts for all cities
 # ---------------------------------------------------------------------------
 print("Running SARIMA forecasts for all cities (this may take a few minutes) ...")
@@ -121,6 +178,13 @@ for city in ALL_CITIES:
         print(f"    WARNING: forecast failed for {city}: {e}")
 
 print(f"Forecasts completed for {len(forecasts)} cities.\n")
+
+
+def _save_both(fig, figure_name):
+    """Save chart to both the personal site output dir and local charts dir."""
+    p1 = save_chart(fig, PROJECT_SLUG, figure_name, output_dir=OUTPUT_DIR)
+    p2 = save_chart(fig, PROJECT_SLUG, figure_name, output_dir=LOCAL_CHART_DIR)
+    return p1
 
 
 # ===================================================================
@@ -142,7 +206,7 @@ ax.legend(loc='upper left', ncol=2, framealpha=0.9)
 add_source_annotation(ax, SOURCE_TEXT)
 fig.tight_layout()
 
-path1 = save_chart(fig, PROJECT_SLUG, 'fig1-multi-city-price-trends', output_dir=OUTPUT_DIR)
+path1 = _save_both(fig, 'fig1-multi-city-price-trends')
 plt.close(fig)
 
 
@@ -170,12 +234,12 @@ ax.set_ylabel('')
 add_source_annotation(ax, SOURCE_TEXT)
 fig.tight_layout()
 
-path2 = save_chart(fig, PROJECT_SLUG, 'fig2-yoy-price-change-heatmap', output_dir=OUTPUT_DIR)
+path2 = _save_both(fig, 'fig2-yoy-price-change-heatmap')
 plt.close(fig)
 
 
 # ===================================================================
-# CHART 3 -- SARIMA forecast: Boston (top ROI city)
+# CHART 3-9 -- Individual city SARIMA forecasts
 # ===================================================================
 def plot_city_forecast(city_name, fig_num, fig_label):
     """Generate a single-city SARIMA forecast chart."""
@@ -217,7 +281,7 @@ def plot_city_forecast(city_name, fig_num, fig_label):
     add_source_annotation(ax, SOURCE_TEXT)
     fig.tight_layout()
 
-    path = save_chart(fig, PROJECT_SLUG, f'fig{fig_num}-{fig_label}-forecast', output_dir=OUTPUT_DIR)
+    path = _save_both(fig, f'fig{fig_num}-{fig_label}-forecast')
     plt.close(fig)
     return path
 
@@ -265,7 +329,7 @@ fig.suptitle('SARIMA Forecasts Across All Cities', fontsize=14, fontweight='bold
 fig.tight_layout()
 add_source_annotation(axes_flat[0], SOURCE_TEXT)
 
-path10 = save_chart(fig, PROJECT_SLUG, 'fig10-all-cities-forecast-grid', output_dir=OUTPUT_DIR)
+path10 = _save_both(fig, 'fig10-all-cities-forecast-grid')
 plt.close(fig)
 
 
@@ -307,7 +371,7 @@ ax.set_ylabel('')
 add_source_annotation(ax, SOURCE_TEXT)
 fig.tight_layout()
 
-path11 = save_chart(fig, PROJECT_SLUG, 'fig11-roi-comparison', output_dir=OUTPUT_DIR)
+path11 = _save_both(fig, 'fig11-roi-comparison')
 plt.close(fig)
 
 
@@ -359,7 +423,7 @@ for (row, col), cell in table.get_celld().items():
 add_source_annotation(ax, SOURCE_TEXT)
 fig.tight_layout()
 
-path12 = save_chart(fig, PROJECT_SLUG, 'fig12-model-diagnostics', output_dir=OUTPUT_DIR)
+path12 = _save_both(fig, 'fig12-model-diagnostics')
 plt.close(fig)
 
 
@@ -384,7 +448,7 @@ if not positive_roi.empty:
     add_source_annotation(ax, SOURCE_TEXT)
     fig.tight_layout()
 
-    path13 = save_chart(fig, PROJECT_SLUG, 'fig13-positive-roi', output_dir=OUTPUT_DIR)
+    path13 = _save_both(fig, 'fig13-positive-roi')
     plt.close(fig)
 else:
     print("  No cities with positive ROI -- skipping.")
@@ -412,7 +476,7 @@ if not negative_roi.empty:
     add_source_annotation(ax, SOURCE_TEXT)
     fig.tight_layout()
 
-    path14 = save_chart(fig, PROJECT_SLUG, 'fig14-negative-roi', output_dir=OUTPUT_DIR)
+    path14 = _save_both(fig, 'fig14-negative-roi')
     plt.close(fig)
 else:
     print("  No cities with negative ROI -- skipping.")
@@ -432,14 +496,107 @@ for patch, color in zip(bp['boxes'], PALETTE):
     patch.set_facecolor(color)
     patch.set_alpha(0.7)
 
-ax.set_title('Median Sale Price Distribution by City (2015-2024)')
+date_min = df['period_end'].min().strftime('%Y')
+date_max = df['period_end'].max().strftime('%Y')
+ax.set_title(f'Median Sale Price Distribution by City ({date_min}-{date_max})')
 ax.set_ylabel('Median Sale Price ($)')
 ax.tick_params(axis='x', rotation=30)
 format_thousands(ax, axis='y')
 add_source_annotation(ax, SOURCE_TEXT)
 fig.tight_layout()
 
-path15 = save_chart(fig, PROJECT_SLUG, 'fig15-price-distribution-boxplot', output_dir=OUTPUT_DIR)
+path15 = _save_both(fig, 'fig15-price-distribution-boxplot')
+plt.close(fig)
+
+
+# ===================================================================
+# CHART 16 -- Backtest MAPE by city (NEW)
+# ===================================================================
+print("\nRunning walk-forward backtests for all cities (this may take several minutes) ...")
+backtest_results = {}
+for city in ALL_CITIES:
+    print(f"  Backtesting: {city}")
+    cdf = df[df['city'] == city].sort_values('period_end').reset_index(drop=True)
+    try:
+        bt = walk_forward_validation(cdf)
+        if not bt.empty:
+            backtest_results[city] = bt
+    except Exception as e:
+        print(f"    WARNING: backtest failed for {city}: {e}")
+
+print(f"Backtests completed for {len(backtest_results)} cities.\n")
+
+# Compute MAPE and RMSE per city
+bt_summary_rows = []
+for city, bt in backtest_results.items():
+    errors = bt['actual'] - bt['predicted']
+    pct_errors = np.abs(errors / bt['actual']) * 100
+    mape = pct_errors.mean()
+    rmse = np.sqrt((errors ** 2).mean())
+    bt_summary_rows.append({'city': city, 'MAPE': mape, 'RMSE': rmse})
+
+bt_summary = pd.DataFrame(bt_summary_rows).sort_values('MAPE', ascending=True)
+
+print("Generating Fig 16: Backtest MAPE by city ...")
+fig, ax = plt.subplots(figsize=(10, 6))
+
+bars = ax.barh(bt_summary['city'], bt_summary['MAPE'],
+               color=COLORS['primary'], edgecolor='none', height=0.6)
+
+for bar, mape_val in zip(bars, bt_summary['MAPE']):
+    ax.text(bar.get_width() + 0.2, bar.get_y() + bar.get_height() / 2,
+            f'{mape_val:.1f}%', va='center', ha='left', fontsize=10, fontweight='bold')
+
+ax.set_title('Walk-Forward Backtest MAPE by City')
+ax.set_xlabel('Mean Absolute Percentage Error (%)')
+ax.set_ylabel('')
+add_source_annotation(ax, SOURCE_TEXT)
+fig.tight_layout()
+
+path16 = _save_both(fig, 'fig16-backtest-mape-by-city')
+plt.close(fig)
+
+
+# ===================================================================
+# CHART 17 -- Walk-forward fold overlay (NEW)
+# ===================================================================
+print("Generating Fig 17: Walk-forward fold overlay ...")
+fig, axes = plt.subplots(2, 4, figsize=(18, 9), sharex=True)
+axes_flat = axes.flatten()
+
+fold_colors = ['#F28E2B', '#E15759', '#76B7B2', '#59A14F',
+               '#EDC948', '#B07AA1', '#FF9DA7', '#9C755F']
+
+for idx, city in enumerate(ALL_CITIES):
+    ax = axes_flat[idx]
+    cdf = df[df['city'] == city].sort_values('period_end')
+
+    # Plot actual
+    ax.plot(cdf['period_end'], cdf['median_sale_price'],
+            color=COLORS['primary'], linewidth=1.5, label='Actual')
+
+    # Plot backtest folds
+    bt = backtest_results.get(city)
+    if bt is not None and not bt.empty:
+        for fold_num in bt['fold'].unique():
+            fdf = bt[bt['fold'] == fold_num]
+            ax.plot(fdf['date'], fdf['predicted'],
+                    color=fold_colors[int(fold_num) % len(fold_colors)],
+                    linewidth=1, linestyle='--', alpha=0.7)
+
+    ax.set_title(city, fontsize=11, fontweight='bold')
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f'${x/1000:.0f}k'))
+    ax.tick_params(axis='x', rotation=45, labelsize=8)
+    ax.tick_params(axis='y', labelsize=8)
+
+for idx in range(len(ALL_CITIES), len(axes_flat)):
+    fig.delaxes(axes_flat[idx])
+
+fig.suptitle('Walk-Forward Backtest — Actual vs. Predicted Folds', fontsize=14, fontweight='bold', y=1.01)
+fig.tight_layout()
+add_source_annotation(axes_flat[0], SOURCE_TEXT)
+
+path17 = _save_both(fig, 'fig17-walk-forward-fold-overlay')
 plt.close(fig)
 
 
@@ -449,7 +606,8 @@ plt.close(fig)
 print("\n" + "=" * 70)
 print("CHART GENERATION COMPLETE")
 print("=" * 70)
-print(f"Output directory: {OUTPUT_DIR}\n")
+print(f"Output directory: {OUTPUT_DIR}")
+print(f"Local copy:       {LOCAL_CHART_DIR}\n")
 
 generated = [
     ('Fig 1', 'Multi-city price trend overview', path1),
@@ -467,6 +625,8 @@ generated = [
     ('Fig 13', 'Positive ROI cities', path13),
     ('Fig 14', 'Negative ROI cities', path14),
     ('Fig 15', 'Price distribution box plot', path15),
+    ('Fig 16', 'Backtest MAPE by city', path16),
+    ('Fig 17', 'Walk-forward fold overlay', path17),
 ]
 
 for label, desc, path in generated:

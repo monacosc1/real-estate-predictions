@@ -1,7 +1,8 @@
-pandas 
-numpy 
-matplotlib 
-statsmodels 
-tqdm 
-plotly 
-streamlit 
+streamlit>=1.37.0
+pandas>=2.1.0
+numpy>=1.26.0
+plotly>=5.18.0
+statsmodels>=0.14.0
+pmdarima>=2.0.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
